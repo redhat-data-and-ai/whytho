@@ -121,6 +121,24 @@ type MRChange struct {
 }
 
 type CodeReview struct {
-	Summary  string   `json:"summary"`
-	Comments []string `json:"comments"`
+	Summary           string            `json:"summary"`
+	Comments          []string          `json:"comments"`
+	PositionedComments []PositionedComment `json:"positioned_comments"`
+}
+
+type PositionedComment struct {
+	FilePath     string `json:"file_path"`
+	LineNumber   int    `json:"line_number"`
+	LineType     string `json:"line_type"` // "old", "new", or "context"
+	Comment      string `json:"comment"`
+	OriginalLine string `json:"original_line"`
+	LineCode     string `json:"line_code"` // GitLab's line code for positioning
+}
+
+type DiffLine struct {
+	Type        string `json:"type"`        // "+", "-", " " (context)
+	Content     string `json:"content"`     // The actual line content
+	OldLineNum  int    `json:"old_line_num"` // Line number in old file (0 if new line)
+	NewLineNum  int    `json:"new_line_num"` // Line number in new file (0 if deleted line)
+	Position    int    `json:"position"`    // Position in diff for GitLab API
 }

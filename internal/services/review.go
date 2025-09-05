@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
@@ -68,8 +69,11 @@ func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description
 		if change.RenamedFile {
 			codeContent.WriteString(fmt.Sprintf("(Renamed from: %s)\n", change.OldPath))
 		}
+		
+		// Process the diff to add line numbers for AI reference
 		codeContent.WriteString("```diff\n")
-		codeContent.WriteString(change.Diff)
+		processedDiff := r.addLineNumbersToDiff(change.Diff)
+		codeContent.WriteString(processedDiff)
 		codeContent.WriteString("\n```\n\n")
 		processedFiles++
 	}
@@ -79,13 +83,29 @@ func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description
 	prompt := fmt.Sprintf(`You are an expert code reviewer. Please review the following merge request changes and provide:
 
 1. A brief summary of the changes
-2. Specific actionable feedback for improvements
+2. Specific actionable feedback for improvements with exact file and line references
 3. Identify potential bugs, security issues, or performance problems
 4. Suggest best practices if applicable
 
+IMPORTANT: Only comment on lines that are actually visible in the diff below. Do not reference line numbers outside of the changes shown.
+
 Please format your response as follows:
 - Start with a summary paragraph
-- Then provide specific comments, each starting with "COMMENT:"
+- Then provide specific comments in this EXACT format:
+  COMMENT:filename.go:diff_line_number:line_type:comment_text
+  
+  Where:
+  - filename.go is the file path (exactly as shown in the diff)
+  - diff_line_number is the DIFF_LINE number shown in brackets (e.g., if you see [DIFF_LINE:5,NEW_LINE:42], use 5)
+  - line_type is either "new" (for lines starting with +), "old" (for lines starting with -), or "context" (for lines starting with space)
+  - comment_text is your feedback
+  
+  Example: If you see "+ const myVar = 5 [DIFF_LINE:3,NEW_LINE:42]", use: COMMENT:src/main.go:3:new:This variable should be declared as const since it never changes.
+
+CRITICAL: 
+- Only use DIFF_LINE numbers from the brackets in the diff
+- Only comment on lines that are actually changed or shown in the diff context
+- Do not try to comment on lines outside the diff
 
 Here are the changes to review:
 
@@ -99,7 +119,7 @@ Focus on:
 - Potential bugs
 - Documentation needs
 
-Be constructive and specific in your feedback.`, codeContent.String())
+Be constructive and specific in your feedback. Only reference lines that are visible in the diff above.`, codeContent.String())
 
 	logrus.Debug("Sending request to Gemini AI for code review")
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
@@ -130,6 +150,7 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 	
 	var summary strings.Builder
 	var comments []string
+	var positionedComments []models.PositionedComment
 	
 	inSummary := true
 	
@@ -140,8 +161,42 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 			inSummary = false
 			comment := strings.TrimPrefix(line, "COMMENT:")
 			comment = strings.TrimSpace(comment)
+			
 			if comment != "" {
-				comments = append(comments, comment)
+				// Try to parse positioned comment format: filename:line:type:comment
+				parts := strings.SplitN(comment, ":", 4)
+				if len(parts) == 4 {
+					filePath := parts[0]
+					lineNumStr := parts[1]
+					lineType := parts[2]
+					commentText := parts[3]
+					
+					if lineNum, err := strconv.Atoi(lineNumStr); err == nil {
+						// Valid positioned comment
+						positionedComment := models.PositionedComment{
+							FilePath:    filePath,
+							LineNumber:  lineNum,
+							LineType:    lineType,
+							Comment:     commentText,
+							OriginalLine: "", // We could enhance this later
+						}
+						positionedComments = append(positionedComments, positionedComment)
+						
+						logrus.WithFields(logrus.Fields{
+							"file_path": filePath,
+							"line_number": lineNum,
+							"line_type": lineType,
+						}).Debug("Parsed positioned comment")
+					} else {
+						// Fallback to general comment
+						comments = append(comments, comment)
+						logrus.WithField("comment", comment).Debug("Failed to parse line number, using general comment")
+					}
+				} else {
+					// Fallback to general comment
+					comments = append(comments, comment)
+					logrus.WithField("comment", comment).Debug("Comment not in positioned format, using general comment")
+				}
 			}
 		} else if inSummary && line != "" {
 			if summary.Len() > 0 {
@@ -153,11 +208,64 @@ func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
 	
 	logrus.WithFields(logrus.Fields{
 		"summary_length": len(summary.String()),
-		"comments_count": len(comments),
+		"general_comments_count": len(comments),
+		"positioned_comments_count": len(positionedComments),
 	}).Debug("Review parsing completed")
 
 	return &models.CodeReview{
-		Summary:  summary.String(),
-		Comments: comments,
+		Summary:           summary.String(),
+		Comments:          comments,
+		PositionedComments: positionedComments,
 	}
+}
+
+func (r *ReviewService) addLineNumbersToDiff(diff string) string {
+	lines := strings.Split(diff, "\n")
+	var result strings.Builder
+	diffLineNum := 0
+	oldLineNum := 0
+	newLineNum := 0
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "@@") {
+			// Parse hunk header to get starting line numbers
+			parts := strings.Split(line, " ")
+			if len(parts) >= 3 {
+				oldPart := strings.TrimPrefix(parts[1], "-")
+				newPart := strings.TrimPrefix(parts[2], "+")
+				
+				if oldComma := strings.Index(oldPart, ","); oldComma > 0 {
+					oldPart = oldPart[:oldComma]
+				}
+				if newComma := strings.Index(newPart, ","); newComma > 0 {
+					newPart = newPart[:newComma]
+				}
+				
+				if oldStart, err := strconv.Atoi(oldPart); err == nil {
+					oldLineNum = oldStart - 1
+				}
+				if newStart, err := strconv.Atoi(newPart); err == nil {
+					newLineNum = newStart - 1
+				}
+			}
+			result.WriteString(line + "\n")
+		} else if strings.HasPrefix(line, "+") {
+			newLineNum++
+			diffLineNum++
+			result.WriteString(fmt.Sprintf("%s [DIFF_LINE:%d,NEW_LINE:%d]\n", line, diffLineNum, newLineNum))
+		} else if strings.HasPrefix(line, "-") {
+			oldLineNum++
+			diffLineNum++
+			result.WriteString(fmt.Sprintf("%s [DIFF_LINE:%d,OLD_LINE:%d]\n", line, diffLineNum, oldLineNum))
+		} else if strings.HasPrefix(line, " ") {
+			oldLineNum++
+			newLineNum++
+			diffLineNum++
+			result.WriteString(fmt.Sprintf("%s [DIFF_LINE:%d,CONTEXT:%d]\n", line, diffLineNum, newLineNum))
+		} else {
+			result.WriteString(line + "\n")
+		}
+	}
+
+	return result.String()
 }

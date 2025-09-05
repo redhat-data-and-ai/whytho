@@ -145,29 +145,61 @@ func (h *WebhookHandler) processMergeRequest(webhook *models.GitLabWebhook) {
 	logrus.WithFields(logrus.Fields{
 		"project_id": projectID,
 		"mr_iid": mrIID,
-		"comments_count": len(review.Comments),
+		"general_comments_count": len(review.Comments),
+		"positioned_comments_count": len(review.PositionedComments),
 	}).Info("Code review completed")
 
+	// Post positioned comments first
+	for i, posComment := range review.PositionedComments {
+		logrus.WithFields(logrus.Fields{
+			"project_id": projectID,
+			"mr_iid": mrIID,
+			"comment_index": i + 1,
+			"total_positioned_comments": len(review.PositionedComments),
+			"file_path": posComment.FilePath,
+			"line_number": posComment.LineNumber,
+		}).Debug("Posting positioned review comment")
+
+		if err := h.gitlabService.PostPositionedMRComment(projectID, mrIID, posComment); err != nil {
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+				"comment_index": i + 1,
+				"file_path": posComment.FilePath,
+				"line_number": posComment.LineNumber,
+			}).Error("Failed to post positioned review comment")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"project_id": projectID,
+				"mr_iid": mrIID,
+				"comment_index": i + 1,
+				"file_path": posComment.FilePath,
+				"line_number": posComment.LineNumber,
+			}).Debug("Positioned review comment posted successfully")
+		}
+	}
+
+	// Post general comments
 	for i, comment := range review.Comments {
 		logrus.WithFields(logrus.Fields{
 			"project_id": projectID,
 			"mr_iid": mrIID,
 			"comment_index": i + 1,
-			"total_comments": len(review.Comments),
-		}).Debug("Posting review comment")
+			"total_general_comments": len(review.Comments),
+		}).Debug("Posting general review comment")
 
 		if err := h.gitlabService.PostMRComment(projectID, mrIID, comment); err != nil {
 			logrus.WithError(err).WithFields(logrus.Fields{
 				"project_id": projectID,
 				"mr_iid": mrIID,
 				"comment_index": i + 1,
-			}).Error("Failed to post review comment")
+			}).Error("Failed to post general review comment")
 		} else {
 			logrus.WithFields(logrus.Fields{
 				"project_id": projectID,
 				"mr_iid": mrIID,
 				"comment_index": i + 1,
-			}).Debug("Review comment posted successfully")
+			}).Debug("General review comment posted successfully")
 		}
 	}
 
