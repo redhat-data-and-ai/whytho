@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/vinamra28/operator-reviewer/internal/config"
@@ -11,6 +14,7 @@ import (
 type Server struct {
 	config *config.Config
 	router *gin.Engine
+	server *http.Server
 }
 
 func New(cfg *config.Config) *Server {
@@ -39,6 +43,16 @@ func New(cfg *config.Config) *Server {
 }
 
 func (s *Server) Start(addr string) error {
+	s.server = &http.Server{
+		Addr:    addr,
+		Handler: s.router,
+	}
+
 	logrus.WithField("address", addr).Info("Starting HTTP server")
-	return s.router.Run(addr)
+	return s.server.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	logrus.Info("Shutting down HTTP server")
+	return s.server.Shutdown(ctx)
 }

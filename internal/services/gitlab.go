@@ -373,7 +373,7 @@ func (g *GitLabService) GetReviewGuidance(projectID int, branch string) (string,
 			}).Debug("No guidance.md file found in repository")
 			return "", nil // Return empty string, not an error
 		}
-		
+
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"project_id": projectID,
 			"branch":     branch,

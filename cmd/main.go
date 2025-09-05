@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/vinamra28/operator-reviewer/internal/config"
@@ -28,7 +33,25 @@ func main() {
 	}
 
 	logrus.WithField("port", port).Info("Starting server")
-	if err := srv.Start(":" + port); err != nil {
-		logrus.WithError(err).Fatal("Server failed to start")
+
+	go func() {
+		if err := srv.Start(":" + port); err != nil && err != http.ErrServerClosed {
+			logrus.WithError(err).Fatal("Server failed to start")
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logrus.Info("Received shutdown signal")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		logrus.WithError(err).Error("Server forced to shutdown")
+	} else {
+		logrus.Info("Server shutdown gracefully")
 	}
 }
