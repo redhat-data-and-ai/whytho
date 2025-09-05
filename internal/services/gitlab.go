@@ -43,7 +43,7 @@ func (g *GitLabService) GetMRChanges(projectID, mrIID int) ([]models.MRChange, e
 		"mr_iid":     mrIID,
 	}).Debug("Fetching merge request changes")
 
-	changes, _, err := g.client.MergeRequests.GetMergeRequestChanges(projectID, mrIID, nil)
+	diffs, _, err := g.client.MergeRequests.ListMergeRequestDiffs(projectID, mrIID, nil)
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"project_id": projectID,
@@ -53,16 +53,16 @@ func (g *GitLabService) GetMRChanges(projectID, mrIID int) ([]models.MRChange, e
 	}
 
 	var mrChanges []models.MRChange
-	for _, change := range changes.Changes {
+	for _, diff := range diffs {
 		mrChange := models.MRChange{
-			OldPath:     change.OldPath,
-			NewPath:     change.NewPath,
-			AMode:       change.AMode,
-			BMode:       change.BMode,
-			NewFile:     change.NewFile,
-			RenamedFile: change.RenamedFile,
-			DeletedFile: change.DeletedFile,
-			Diff:        change.Diff,
+			OldPath:     diff.OldPath,
+			NewPath:     diff.NewPath,
+			AMode:       diff.AMode,
+			BMode:       diff.BMode,
+			NewFile:     diff.NewFile,
+			RenamedFile: diff.RenamedFile,
+			DeletedFile: diff.DeletedFile,
+			Diff:        diff.Diff,
 		}
 		mrChanges = append(mrChanges, mrChange)
 	}
@@ -244,15 +244,15 @@ func (g *GitLabService) convertDiffLineToActualLine(projectID, mrIID int, positi
 	}).Debug("Converting diff line number to actual line number")
 
 	// Get merge request changes
-	changes, _, err := g.client.MergeRequests.GetMergeRequestChanges(projectID, mrIID, nil)
+	diffs, _, err := g.client.MergeRequests.ListMergeRequestDiffs(projectID, mrIID, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get MR changes: %w", err)
 	}
 
 	// Find the specific file
-	for _, change := range changes.Changes {
-		if change.NewPath == positionedComment.FilePath || change.OldPath == positionedComment.FilePath {
-			return g.findActualLineNumber(change.Diff, positionedComment)
+	for _, diff := range diffs {
+		if diff.NewPath == positionedComment.FilePath || diff.OldPath == positionedComment.FilePath {
+			return g.findActualLineNumber(diff.Diff, positionedComment)
 		}
 	}
 
