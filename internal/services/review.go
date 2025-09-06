@@ -97,15 +97,21 @@ func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description
 			"guidance_length": len(guidance),
 		}).Info("Using custom review guidance from repository")
 
-		prompt = fmt.Sprintf(`You are an expert code reviewer. Please review the following merge request changes according to the custom guidance provided below.
+		prompt = fmt.Sprintf(`You are an expert code reviewer with deep knowledge of software engineering best practices. Review the following merge request changes according to the custom guidance provided below.
 
 CUSTOM REVIEW GUIDANCE:
 %s
 
 IMPORTANT: Only comment on lines that are actually visible in the diff below. Do not reference line numbers outside of the changes shown.
 
+When providing feedback, be solution-oriented and include specific improvement suggestions:
+- For code quality issues: Suggest better patterns, refactoring opportunities, or architectural improvements
+- For performance concerns: Provide specific optimization techniques or alternative approaches
+- For security issues: Recommend secure coding practices and specific fixes
+- For maintainability: Suggest ways to make code more readable, testable, or modular
+
 Please format your response as follows:
-- Start with a summary paragraph
+- Start with a summary paragraph highlighting the most important findings
 - Then provide specific comments in this EXACT format:
   COMMENT:filename.go:diff_line_number:line_type:severity:comment_text
   
@@ -114,7 +120,14 @@ Please format your response as follows:
   - diff_line_number is the DIFF_LINE number shown in brackets (e.g., if you see [DIFF_LINE:5,NEW_LINE:42], use 5)
   - line_type is either "new" (for lines starting with +), "old" (for lines starting with -), or "context" (for lines starting with space)
   - severity is one of: LOW, MEDIUM, HIGH, or CRITICAL
-  - comment_text is your feedback
+  - comment_text is your detailed feedback with specific suggestions
+  
+  Comment Structure Guidelines:
+  - Start with a clear problem statement
+  - Provide specific improvement suggestion
+  - Include code examples when helpful (use markdown code blocks)
+  - Explain the benefits of the suggested change
+  - Reference relevant best practices or patterns
   
   Severity Guidelines:
   - CRITICAL: Security vulnerabilities, potential data loss, system crashes
@@ -122,33 +135,42 @@ Please format your response as follows:
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs
   - LOW: Style improvements, documentation suggestions, minor optimizations
   
-  Example: If you see "+ const myVar = 5 [DIFF_LINE:3,NEW_LINE:42]", use: COMMENT:src/main.go:3:new:LOW:This variable should be declared as const since it never changes.
+  Example: COMMENT:src/main.go:3:new:MEDIUM:Consider using a more specific variable name and declaring it as const for better readability and immutability. Suggestion: "const maxRetryCount = 5" instead of "myVar = 5". This makes the purpose clear and prevents accidental modification.
 
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
 - Do not try to comment on lines outside the diff
 - Follow the custom guidance provided above
+- Always provide actionable suggestions with clear reasoning
 
 Here are the changes to review:
 
 %s
 
-Be constructive and specific in your feedback. Only reference lines that are visible in the diff above.`, guidance, codeContent.String())
+Focus on providing constructive, actionable feedback that helps improve code quality, security, and maintainability.`, guidance, codeContent.String())
 	} else {
 		logrus.WithField("project_id", projectID).Info("Using default review guidance")
 
-		prompt = fmt.Sprintf(`You are an expert code reviewer. Please review the following merge request changes and provide:
+		prompt = fmt.Sprintf(`You are an expert code reviewer with deep knowledge of software engineering best practices. Analyze the following merge request changes and provide comprehensive, actionable feedback.
 
-1. A brief summary of the changes
-2. Specific actionable feedback for improvements with exact file and line references
-3. Identify potential bugs, security issues, or performance problems
-4. Suggest best practices if applicable
+REVIEW OBJECTIVES:
+1. Identify code quality improvements and refactoring opportunities
+2. Suggest performance optimizations and architectural enhancements
+3. Highlight security vulnerabilities and recommend secure coding practices
+4. Propose maintainability improvements and best practices
+5. Detect potential bugs and logic errors
 
 IMPORTANT: Only comment on lines that are actually visible in the diff below. Do not reference line numbers outside of the changes shown.
 
+When providing feedback, be solution-oriented and include specific improvement suggestions:
+- For code quality issues: Suggest better patterns, refactoring opportunities, or architectural improvements
+- For performance concerns: Provide specific optimization techniques or alternative approaches
+- For security issues: Recommend secure coding practices and specific fixes
+- For maintainability: Suggest ways to make code more readable, testable, or modular
+
 Please format your response as follows:
-- Start with a summary paragraph
+- Start with a summary paragraph highlighting the most important findings and overall assessment
 - Then provide specific comments in this EXACT format:
   COMMENT:filename.go:diff_line_number:line_type:severity:comment_text
   
@@ -157,34 +179,35 @@ Please format your response as follows:
   - diff_line_number is the DIFF_LINE number shown in brackets (e.g., if you see [DIFF_LINE:5,NEW_LINE:42], use 5)
   - line_type is either "new" (for lines starting with +), "old" (for lines starting with -), or "context" (for lines starting with space)
   - severity is one of: LOW, MEDIUM, HIGH, or CRITICAL
-  - comment_text is your feedback
+  - comment_text is your detailed feedback with specific suggestions
+  
+  Comment Structure Guidelines:
+  - Start with a clear problem statement
+  - Provide specific improvement suggestion with reasoning
+  - Include code examples when helpful (use markdown code blocks)
+  - Explain the benefits of the suggested change
+  - Reference relevant best practices, design patterns, or standards
   
   Severity Guidelines:
-  - CRITICAL: Security vulnerabilities, potential data loss, system crashes
-  - HIGH: Major bugs, performance issues, serious logic errors
-  - MEDIUM: Code quality issues, maintainability concerns, minor bugs
-  - LOW: Style improvements, documentation suggestions, minor optimizations
+  - CRITICAL: Security vulnerabilities, potential data loss, system crashes, major logic errors
+  - HIGH: Performance bottlenecks, significant bugs, architectural issues, race conditions
+  - MEDIUM: Code quality issues, maintainability concerns, minor bugs, suboptimal patterns
+  - LOW: Style improvements, documentation suggestions, minor optimizations, naming conventions
   
-  Example: If you see "+ const myVar = 5 [DIFF_LINE:3,NEW_LINE:42]", use: COMMENT:src/main.go:3:new:LOW:This variable should be declared as const since it never changes.
+  Example: COMMENT:src/main.go:3:new:MEDIUM:Consider using a more descriptive variable name and declaring it as const for better readability and immutability. Suggestion: Replace "myVar = 5" with "const maxRetryCount = 5". This improves code clarity and prevents accidental modification, following Go naming conventions.
 
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
 - Do not try to comment on lines outside the diff
+- Always provide actionable suggestions with clear reasoning
+- Include specific code examples when proposing alternatives
 
 Here are the changes to review:
 
 %s
 
-Focus on:
-- Code quality and maintainability
-- Security vulnerabilities
-- Performance issues
-- Best practices
-- Potential bugs
-- Documentation needs
-
-Be constructive and specific in your feedback. Only reference lines that are visible in the diff above.`, codeContent.String())
+Focus on providing constructive, actionable feedback that helps developers write better, more secure, and maintainable code.`, codeContent.String())
 	}
 
 	logrus.Debug("Sending request to Gemini AI for code review")
