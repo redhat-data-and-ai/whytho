@@ -423,7 +423,7 @@ func (g *GitLabService) GetWhyThoConfig(projectID, mrIID int, targetBranch strin
 	}).Debug("Fetching WhyTho config")
 
 	configPath := ".whytho/config.yaml"
-	
+
 	// First, check if .whytho/config.yaml is modified in the MR diff
 	for _, change := range changes {
 		if change.NewPath == configPath && !change.DeletedFile {
@@ -431,7 +431,7 @@ func (g *GitLabService) GetWhyThoConfig(projectID, mrIID int, targetBranch strin
 				"project_id": projectID,
 				"mr_iid":     mrIID,
 			}).Info("WhyTho config found in MR diff, using modified version")
-			
+
 			// Parse the new version from the diff
 			config, err := g.parseWhyThoConfigFromDiff(change.Diff)
 			if err != nil {
@@ -452,19 +452,19 @@ func (g *GitLabService) GetWhyThoConfig(projectID, mrIID int, targetBranch strin
 func (g *GitLabService) parseWhyThoConfigFromDiff(diff string) (*models.WhyThoConfig, error) {
 	lines := strings.Split(diff, "\n")
 	var yamlContent strings.Builder
-	
+
 	for _, line := range lines {
 		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
 			// Remove the '+' prefix and add to YAML content
 			yamlContent.WriteString(strings.TrimPrefix(line, "+") + "\n")
 		}
 	}
-	
+
 	var config models.WhyThoConfig
 	if err := yaml.Unmarshal([]byte(yamlContent.String()), &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML from diff: %w", err)
 	}
-	
+
 	return &config, nil
 }
 
@@ -475,7 +475,7 @@ func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) 
 	}).Debug("Fetching WhyTho config from target branch")
 
 	configPath := ".whytho/config.yaml"
-	
+
 	// Try to fetch .whytho/config.yaml from the repository
 	file, _, err := g.client.RepositoryFiles.GetFile(projectID, configPath, &gitlab.GetFileOptions{
 		Ref: &branch,
@@ -533,13 +533,13 @@ func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) 
 func formatSeverity(severity string) string {
 	switch severity {
 	case "CRITICAL":
-		return "🔴 **CRITICAL** 🔴"
+		return "![Critical](https://camo.githubusercontent.com/97cdeeadb5113837c0d106b7e5adaab2e2b698c5115c07d716586ff9f7c771eb/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f637269746963616c2e737667)"
 	case "HIGH":
-		return "🟠 **HIGH** 🟠"
+		return "![High](https://camo.githubusercontent.com/6be8dfd86afd9805fdf193065c11418ba1225c487bda10d961f6a486f586fa07/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f686967682d7072696f726974792e737667)"
 	case "MEDIUM":
-		return "🟡 **MEDIUM** 🟡"
+		return "![Medium](https://camo.githubusercontent.com/a33c7ba47779a2aabda978d90fc2665dd949d88da87f5ff554e65308de059f02/68747470733a2f2f7777772e677374617469632e636f6d2f636f64657265766965776167656e742f6d656469756d2d7072696f726974792e737667)"
 	case "LOW":
-		return "🟢 **LOW** 🟢"
+		return "![Low]()"
 	default:
 		return fmt.Sprintf("**%s**", severity)
 	}
