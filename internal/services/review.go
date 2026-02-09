@@ -162,7 +162,7 @@ Please format your response as follows:
 - Start with a summary paragraph highlighting the most important findings
 - Then provide specific comments in this EXACT format:
   COMMENT:filename.go:diff_line_number:line_type:severity:comment_text
-  
+
   Where:
   - filename.go is the file path (exactly as shown in the diff)
   - diff_line_number is the DIFF_LINE number shown in brackets (e.g., if you see [DIFF_LINE:5,NEW_LINE:42], use 5)
@@ -185,20 +185,20 @@ Please format your response as follows:
   Example with suggestion:
   COMMENT:src/main.go:3:new:MEDIUM:Variable name 'myVar' is unclear. Using a descriptive constant name improves readability and prevents accidental modification.
   SUGGESTION:-0+0:const maxRetryCount = 5
-  
+
   Comment Structure Guidelines:
   - Start with a clear problem statement
   - Provide specific improvement suggestion
   - When providing a code suggestion, explain WHY in the comment, and provide the exact code in SUGGESTION
   - Explain the benefits of the suggested change
   - Reference relevant best practices or patterns
-  
+
   Severity Guidelines:
   - CRITICAL: Security vulnerabilities, potential data loss, system crashes
   - HIGH: Major bugs, performance issues, serious logic errors
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs
   - LOW: Style improvements, documentation suggestions, minor optimizations
-  
+
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
@@ -235,7 +235,7 @@ Please format your response as follows:
 - Start with a summary paragraph highlighting the most important findings and overall assessment
 - Then provide specific comments in this EXACT format:
   COMMENT:filename.go:diff_line_number:line_type:severity:comment_text
-  
+
   Where:
   - filename.go is the file path (exactly as shown in the diff)
   - diff_line_number is the DIFF_LINE number shown in brackets (e.g., if you see [DIFF_LINE:5,NEW_LINE:42], use 5)
@@ -258,20 +258,20 @@ Please format your response as follows:
   Example with suggestion:
   COMMENT:src/main.go:3:new:MEDIUM:Variable name 'myVar' is unclear. Using a descriptive constant name improves readability and prevents accidental modification.
   SUGGESTION:-0+0:const maxRetryCount = 5
-  
+
   Comment Structure Guidelines:
   - Start with a clear problem statement
   - Provide specific improvement suggestion with reasoning
   - When providing a code suggestion, explain WHY in the comment, and provide the exact code in SUGGESTION
   - Explain the benefits of the suggested change
   - Reference relevant best practices, design patterns, or standards
-  
+
   Severity Guidelines:
   - CRITICAL: Security vulnerabilities, potential data loss, system crashes, major logic errors
   - HIGH: Performance bottlenecks, significant bugs, architectural issues, race conditions
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs, suboptimal patterns
   - LOW: Style improvements, documentation suggestions, minor optimizations, naming conventions
-  
+
 CRITICAL: 
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
@@ -304,8 +304,33 @@ Focus on providing constructive, actionable feedback that helps developers write
 
 	reviewText := resp.Text()
 
-	logrus.WithField("review_length", len(reviewText)).Info("AI code review generated successfully")
-	return r.parseReview(reviewText), nil
+	// Capture token usage
+	var promptTokens, responseTokens, totalTokens int32
+	if resp.UsageMetadata != nil {
+		promptTokens = resp.UsageMetadata.PromptTokenCount
+		responseTokens = resp.UsageMetadata.CandidatesTokenCount
+		totalTokens = resp.UsageMetadata.TotalTokenCount
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"review_length":   len(reviewText),
+		"prompt_tokens":   promptTokens,
+		"response_tokens": responseTokens,
+		"total_tokens":    totalTokens,
+	}).Info("AI code review generated successfully")
+
+	review := r.parseReview(reviewText)
+	review.PromptTokens = promptTokens
+	review.ResponseTokens = responseTokens
+	review.TotalTokens = totalTokens
+
+	// Apply severity threshold filtering if configured
+	if whyThoConfig.CommentSeverityThreshold != "" {
+		logrus.WithField("threshold", whyThoConfig.CommentSeverityThreshold).Debug("Applying severity threshold filter")
+		review = r.FilterCommentsBySeverity(review, whyThoConfig.CommentSeverityThreshold)
+	}
+
+	return review, nil
 }
 
 func (r *ReviewService) parseReview(reviewText string) *models.CodeReview {
@@ -518,4 +543,71 @@ func (r *ReviewService) addLineNumbersToDiff(diff string) string {
 	}
 
 	return result.String()
+}
+
+// getSeverityLevel returns numeric level for severity comparison
+func getSeverityLevel(severity string) int {
+	switch strings.ToUpper(severity) {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	default:
+		return 0
+	}
+}
+
+// meetsSeverityThreshold checks if comment severity meets or exceeds the threshold
+func meetsSeverityThreshold(commentSeverity, threshold string) bool {
+	if threshold == "" {
+		return true // No threshold set, allow all comments
+	}
+
+	commentLevel := getSeverityLevel(commentSeverity)
+	thresholdLevel := getSeverityLevel(threshold)
+
+	return commentLevel >= thresholdLevel
+}
+
+// FilterCommentsBySeverity filters positioned comments based on severity threshold
+func (r *ReviewService) FilterCommentsBySeverity(review *models.CodeReview, threshold string) *models.CodeReview {
+	if threshold == "" {
+		logrus.Debug("No severity threshold set, returning all comments")
+		return review
+	}
+
+	logrus.WithField("threshold", threshold).Debug("Filtering comments by severity threshold")
+
+	var filteredComments []models.PositionedComment
+	filteredCount := 0
+
+	for _, comment := range review.PositionedComments {
+		if meetsSeverityThreshold(comment.Severity, threshold) {
+			filteredComments = append(filteredComments, comment)
+		} else {
+			filteredCount++
+			logrus.WithFields(logrus.Fields{
+				"file_path":   comment.FilePath,
+				"line_number": comment.LineNumber,
+				"severity":    comment.Severity,
+				"threshold":   threshold,
+			}).Debug("Filtering out comment below severity threshold")
+		}
+	}
+
+	if filteredCount > 0 {
+		logrus.WithFields(logrus.Fields{
+			"threshold":       threshold,
+			"filtered_count":  filteredCount,
+			"remaining_count": len(filteredComments),
+			"original_count":  len(review.PositionedComments),
+		}).Info("Filtered comments by severity threshold")
+	}
+
+	review.PositionedComments = filteredComments
+	return review
 }

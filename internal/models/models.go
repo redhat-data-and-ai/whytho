@@ -125,13 +125,17 @@ type CodeReview struct {
 	Summary            string              `json:"summary"`
 	Comments           []string            `json:"comments"`
 	PositionedComments []PositionedComment `json:"positioned_comments"`
+	// Token usage tracking
+	PromptTokens   int32 `json:"prompt_tokens"`
+	ResponseTokens int32 `json:"response_tokens"`
+	TotalTokens    int32 `json:"total_tokens"`
 }
 
 type PositionedComment struct {
 	FilePath     string `json:"file_path"`
 	LineNumber   int    `json:"line_number"`
 	LineType     string `json:"line_type"` // "old", "new", or "context"
-	Severity     string `json:"severity"`   // "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+	Severity     string `json:"severity"`  // "LOW", "MEDIUM", "HIGH", or "CRITICAL"
 	Comment      string `json:"comment"`
 	OriginalLine string `json:"original_line"`
 	LineCode     string `json:"line_code"` // GitLab's line code for positioning
@@ -150,5 +154,6 @@ type DiffLine struct {
 }
 
 type WhyThoConfig struct {
-	ExcludePaths []string `yaml:"excludePaths"`
+	ExcludePaths             []string `yaml:"excludePaths"`
+	CommentSeverityThreshold string   `yaml:"commentSeverityThreshold"` // LOW, MEDIUM, HIGH, or CRITICAL
 }
