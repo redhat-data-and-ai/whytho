@@ -178,6 +178,9 @@ func (h *WebhookHandler) processMergeRequest(webhook *models.GitLabWebhook) {
 		"general_comments_count":    len(review.Comments),
 		"positioned_comments_count": len(review.PositionedComments),
 		"suggestions_count":         suggestionsCount,
+		"prompt_tokens":             review.PromptTokens,
+		"response_tokens":           review.ResponseTokens,
+		"total_tokens":              review.TotalTokens,
 	}).Info("Code review completed")
 
 	// Post positioned comments first

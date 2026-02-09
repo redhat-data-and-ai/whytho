@@ -10,9 +10,12 @@ An AI-powered GitLab merge request reviewer bot that uses Google's Gemini LLM to
 - 📍 **Positioned Comments**: AI can comment on specific lines in diffs for precise feedback
 - ✨ **GitLab Suggestions**: Provides one-click code fix suggestions that developers can apply instantly
 - 📋 **Custom Review Guidance**: Supports repository-specific review criteria via .whytho/guidance.md files
+- 🎚️ **Severity Filtering**: Configure minimum severity threshold to control comment volume
 - 🔒 **Secure**: Supports webhook signature verification
 - 📊 **Comprehensive Analysis**: Reviews code quality, security, performance, and best practices
 - 📝 **Structured Logging**: Uses logrus for comprehensive structured logging
+- 🎯 **Path Exclusions**: Exclude specific files/directories from review via .whytho/config.yaml
+- 📈 **Token Tracking**: Monitor AI token usage per review for cost management
 - 🐳 **Containerized**: Ready-to-deploy Docker setup
 
 ## Prerequisites
@@ -200,6 +203,7 @@ The bot checks for `.whytho/config.yaml` in the following order:
 ### Example Configuration
 
 ```yaml
+# Exclude paths/files from code review
 excludePaths:
   - "vendor/**" # Exclude all vendor dependencies
   - "*.pb.go" # Exclude generated protobuf files
@@ -208,7 +212,38 @@ excludePaths:
   - "test/fixtures/**" # Exclude test fixtures
   - "*.min.js" # Exclude minified JavaScript
   - "migrations/**" # Exclude database migrations
+
+# Minimum severity threshold for comments to be posted
+# Options: LOW, MEDIUM, HIGH, CRITICAL
+# Only comments meeting or exceeding this threshold will be posted
+commentSeverityThreshold: "MEDIUM" # Post only MEDIUM, HIGH, and CRITICAL comments
 ```
+
+### Comment Severity Threshold
+
+Control which review comments are posted based on their severity level using the `commentSeverityThreshold` configuration:
+
+**Severity Levels (from lowest to highest):**
+
+- `LOW`: Style improvements, documentation suggestions, minor optimizations
+- `MEDIUM`: Code quality issues, maintainability concerns, minor bugs
+- `HIGH`: Performance bottlenecks, significant bugs, architectural issues
+- `CRITICAL`: Security vulnerabilities, potential data loss, system crashes
+
+**Examples:**
+
+- `commentSeverityThreshold: "CRITICAL"` - Only post critical security/reliability issues
+- `commentSeverityThreshold: "HIGH"` - Post high-priority and critical issues
+- `commentSeverityThreshold: "MEDIUM"` - Post medium, high, and critical issues (recommended)
+- `commentSeverityThreshold: "LOW"` - Post all comments (default if not specified)
+- `commentSeverityThreshold: ""` - Post all comments (same as omitting the field)
+
+**Use Cases:**
+
+- **Production branches**: Set to `HIGH` or `CRITICAL` to focus only on serious issues
+- **Development branches**: Set to `MEDIUM` for balanced feedback
+- **Learning/training**: Set to `LOW` or omit to get comprehensive feedback
+- **Noisy repositories**: Set to `MEDIUM` or `HIGH` to reduce comment volume
 
 ### Logging
 
