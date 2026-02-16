@@ -493,6 +493,12 @@ func (g *GitLabService) parseWhyThoConfigFromDiff(diff string) (*models.WhyThoCo
 		return nil, fmt.Errorf("failed to parse YAML from diff: %w", err)
 	}
 
+	// Set default severity threshold if not specified
+	if config.CommentSeverityThreshold == "" {
+		config.CommentSeverityThreshold = "MEDIUM"
+		logrus.Debug("CommentSeverityThreshold not set in config from diff, using default: MEDIUM")
+	}
+
 	return &config, nil
 }
 
@@ -515,7 +521,10 @@ func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) 
 				"project_id": projectID,
 				"branch":     branch,
 			}).Debug("No .whytho/config.yaml file found in repository")
-			return &models.WhyThoConfig{ExcludePaths: []string{}}, nil // Return empty config
+			return &models.WhyThoConfig{
+				ExcludePaths:             []string{},
+				CommentSeverityThreshold: "MEDIUM",
+			}, nil // Return config with default severity
 		}
 
 		logrus.WithError(err).WithFields(logrus.Fields{
@@ -549,10 +558,20 @@ func (g *GitLabService) getWhyThoConfigFromBranch(projectID int, branch string) 
 		return nil, fmt.Errorf("failed to parse .whytho/config.yaml: %w", err)
 	}
 
+	// Set default severity threshold if not specified
+	if config.CommentSeverityThreshold == "" {
+		config.CommentSeverityThreshold = "MEDIUM"
+		logrus.WithFields(logrus.Fields{
+			"project_id": projectID,
+			"branch":     branch,
+		}).Debug("CommentSeverityThreshold not set in config, using default: MEDIUM")
+	}
+
 	logrus.WithFields(logrus.Fields{
-		"project_id":    projectID,
-		"branch":        branch,
-		"exclude_paths": len(config.ExcludePaths),
+		"project_id":                projectID,
+		"branch":                    branch,
+		"exclude_paths":             len(config.ExcludePaths),
+		"commentSeverityThreshold": config.CommentSeverityThreshold,
 	}).Info("Successfully fetched WhyTho config from repository")
 
 	return &config, nil

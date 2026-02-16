@@ -4,5 +4,5 @@ excludePaths: ["vendor/**"]
 # Minimum severity threshold for comments to be posted
 # Options: LOW, MEDIUM, HIGH, CRITICAL
 # If set to MEDIUM, only MEDIUM, HIGH, and CRITICAL comments will be posted (LOW will be filtered out)
-# Leave empty or omit to post all comments regardless of severity
-commentSeverityThreshold: ""  # Empty = post all comments
+# Default: MEDIUM (if empty or omitted)
+commentSeverityThreshold: ""  # Empty = defaults to MEDIUM
