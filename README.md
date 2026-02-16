@@ -234,16 +234,16 @@ Control which review comments are posted based on their severity level using the
 
 - `commentSeverityThreshold: "CRITICAL"` - Only post critical security/reliability issues
 - `commentSeverityThreshold: "HIGH"` - Post high-priority and critical issues
-- `commentSeverityThreshold: "MEDIUM"` - Post medium, high, and critical issues (recommended)
-- `commentSeverityThreshold: "LOW"` - Post all comments (default if not specified)
-- `commentSeverityThreshold: ""` - Post all comments (same as omitting the field)
+- `commentSeverityThreshold: "MEDIUM"` - Post medium, high, and critical issues (default if not specified)
+- `commentSeverityThreshold: "LOW"` - Post all comments including low-severity style suggestions
+- `commentSeverityThreshold: ""` - Defaults to MEDIUM (same as omitting the field)
 
 **Use Cases:**
 
 - **Production branches**: Set to `HIGH` or `CRITICAL` to focus only on serious issues
-- **Development branches**: Set to `MEDIUM` for balanced feedback
-- **Learning/training**: Set to `LOW` or omit to get comprehensive feedback
-- **Noisy repositories**: Set to `MEDIUM` or `HIGH` to reduce comment volume
+- **Development branches**: Use default `MEDIUM` for balanced feedback
+- **Learning/training**: Set to `LOW` to get comprehensive feedback including style suggestions
+- **Noisy repositories**: Set to `HIGH` to reduce comment volume
 
 ### Logging
 

@@ -139,16 +139,24 @@ func (r *ReviewService) ReviewCode(changes []models.MRChange, title, description
 
 	// Build the prompt with custom or default guidance
 	var prompt string
+	severityThreshold := whyThoConfig.CommentSeverityThreshold
+	if severityThreshold == "" {
+		severityThreshold = "MEDIUM"
+	}
+
 	if guidance != "" {
 		logrus.WithFields(logrus.Fields{
-			"project_id":      projectID,
-			"guidance_length": len(guidance),
+			"project_id":         projectID,
+			"guidance_length":    len(guidance),
+			"severity_threshold": severityThreshold,
 		}).Info("Using custom review guidance from repository")
 
 		prompt = fmt.Sprintf(`You are an expert code reviewer with deep knowledge of software engineering best practices. Review the following merge request changes according to the custom guidance provided below.
 
 CUSTOM REVIEW GUIDANCE:
 %s
+
+SEVERITY THRESHOLD: Only provide comments with severity of %s or higher. Do not generate LOW severity comments as they will be filtered out. Focus on meaningful issues that meet or exceed the %s threshold.
 
 IMPORTANT: Only comment on lines that are actually visible in the diff below. Do not reference line numbers outside of the changes shown.
 
@@ -199,20 +207,26 @@ Please format your response as follows:
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs
   - LOW: Style improvements, documentation suggestions, minor optimizations
 
-CRITICAL: 
+  IMPORTANT: Only provide comments with severity %s or higher. Do not generate comments below this threshold.
+
+CRITICAL:
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
 - Do not try to comment on lines outside the diff
 - Follow the custom guidance provided above
 - Always provide actionable suggestions with clear reasoning
+- Remember: minimum severity is %s, do not generate lower severity comments
 
 Here are the changes to review:
 
 %s
 
-Focus on providing constructive, actionable feedback that helps improve code quality, security, and maintainability.`, guidance, codeContent.String())
+Focus on providing constructive, actionable feedback that helps improve code quality, security, and maintainability.`, guidance, severityThreshold, severityThreshold, severityThreshold, severityThreshold, codeContent.String())
 	} else {
-		logrus.WithField("project_id", projectID).Info("Using default review guidance")
+		logrus.WithFields(logrus.Fields{
+			"project_id":         projectID,
+			"severity_threshold": severityThreshold,
+		}).Info("Using default review guidance")
 
 		prompt = fmt.Sprintf(`You are an expert code reviewer with deep knowledge of software engineering best practices. Analyze the following merge request changes and provide comprehensive, actionable feedback.
 
@@ -222,6 +236,8 @@ REVIEW OBJECTIVES:
 3. Highlight security vulnerabilities and recommend secure coding practices
 4. Propose maintainability improvements and best practices
 5. Detect potential bugs and logic errors
+
+SEVERITY THRESHOLD: Only provide comments with severity of %s or higher. Do not generate comments below this threshold as they will be filtered out. Focus on meaningful issues that meet or exceed the %s threshold.
 
 IMPORTANT: Only comment on lines that are actually visible in the diff below. Do not reference line numbers outside of the changes shown.
 
@@ -272,18 +288,21 @@ Please format your response as follows:
   - MEDIUM: Code quality issues, maintainability concerns, minor bugs, suboptimal patterns
   - LOW: Style improvements, documentation suggestions, minor optimizations, naming conventions
 
-CRITICAL: 
+  IMPORTANT: Only provide comments with severity %s or higher. Do not generate comments below this threshold.
+
+CRITICAL:
 - Only use DIFF_LINE numbers from the brackets in the diff
 - Only comment on lines that are actually changed or shown in the diff context
 - Do not try to comment on lines outside the diff
 - Always provide actionable suggestions with clear reasoning
 - Include specific code examples when proposing alternatives
+- Remember: minimum severity is %s, do not generate lower severity comments
 
 Here are the changes to review:
 
 %s
 
-Focus on providing constructive, actionable feedback that helps developers write better, more secure, and maintainable code.`, codeContent.String())
+Focus on providing constructive, actionable feedback that helps developers write better, more secure, and maintainable code.`, severityThreshold, severityThreshold, severityThreshold, severityThreshold, codeContent.String())
 	}
 
 	logrus.Debug("Sending request to Gemini AI for code review")
