@@ -34,7 +34,15 @@ git clone https://github.com/vinamra28/whytho.git
 cd whytho
 ```
 
-### 2. Configure Environment Variables
+### 2. Install pre-commit (recommended)
+
+```bash
+pip install pre-commit && pre-commit install
+```
+
+Hooks run `gitleaks` and `detect-private-key` on commit. Also enable [GitHub Secret Scanning](https://docs.github.com/en/code-security/concepts/secret-security/secret-scanning) and [Push Protection](https://docs.github.com/en/code-security/concepts/secret-security/push-protection) on the repository for defense in depth.
+
+### 3. Configure Environment Variables
 
 Copy the example environment file and fill in your credentials:
 
@@ -52,13 +60,13 @@ WEBHOOK_SECRET=your_webhook_secret_here
 PORT=8080
 ```
 
-### 3. Install Dependencies
+### 4. Install Dependencies
 
 ```bash
 go mod tidy
 ```
 
-### 4. Run the Application
+### 5. Run the Application
 
 #### Option A: Direct Go Run
 
